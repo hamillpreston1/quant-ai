@@ -1,0 +1,17 @@
+QUANT AI — START HERE
+=====================
+
+The easiest way to use this app is to put it online. No coding is required.
+
+1. Create a free GitHub account: https://github.com/signup
+2. Create a public repository named quant-ai and upload everything in this folder.
+3. Sign in at https://share.streamlit.io/ with GitHub, choose that repository,
+   set the main file to app.py, and click Deploy.
+
+Open README.md for illustrated-by-words, step-by-step instructions and troubleshooting.
+
+The app starts in safe Demo mode. It never connects to a brokerage and cannot place
+trades. Switch to Live market data in the sidebar only when you want to try delayed
+public prices. If that download fails, the app safely returns to Demo mode.
+
+This is an educational research tool, not financial advice.
