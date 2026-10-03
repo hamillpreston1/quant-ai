@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.v12-test-deps/
 .env
 .DS_Store
 .streamlit/secrets.toml

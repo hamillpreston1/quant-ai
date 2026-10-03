@@ -1,6 +1,6 @@
-# Quant AI — User-Friendly Starter App
+# Quant AI — User-Friendly Research App
 
-**Version 1.1:** Fixes Research Lab settings persistence, improves chart and alert contrast, and makes the purple theme more resilient on Community Cloud.
+**Version 1.2 — Trust Layer:** Adds an SPY benchmark, selectable test dates, an auditable rebalance and holdings history, and downloadable CSV results.
 
 Quant AI is a browser-based research app for exploring a simple stock-ranking strategy. It rewards stronger 12-month and 6-month momentum and penalizes higher volatility.
 
@@ -10,6 +10,10 @@ It includes:
 - sortable stock rankings
 - plain-English stock detail pages
 - an interactive historical backtester
+- SPY benchmark comparison in Live mode and a synthetic SPY proxy in Demo mode
+- selectable backtest start and end dates
+- rebalance and position-level holdings history
+- downloadable performance, holdings, and metrics files
 - a Research Lab for changing tickers and factor weights
 - built-in synthetic demo data
 - optional public market-price downloads with automatic demo fallback
@@ -58,7 +62,7 @@ Only use this route if you are comfortable installing Python.
 - **Dashboard:** See the current leaders and the starter strategy at a glance.
 - **Stock Rankings:** Filter and compare all stocks in the selected universe.
 - **Stock Detail:** Pick one ticker to see its history and understand its score.
-- **Backtester:** Choose a portfolio size and rebalance schedule, then run a simulation.
+- **Backtester:** Choose dates, portfolio size, and rebalance schedule; review every historical rebalance; then download the results.
 - **Settings / Research Lab:** Change ticker symbols and factor weights without editing code.
 
 ## What this first version does—and does not do
@@ -69,7 +73,7 @@ The score combines three price-based signals:
 - 30% 6-month momentum
 - 15% preference for lower volatility
 
-You can change those weights in the Research Lab. The backtest uses information available before each rebalance and includes a simple trading-cost estimate.
+You can change those weights in the Research Lab. The backtest uses information available before each rebalance and includes a simple trading-cost estimate. Live mode compares the strategy with SPY. Demo mode uses a clearly labeled synthetic SPY-like benchmark so the entire interface remains available offline.
 
 This version does **not** include fundamentals, SEC filings, earnings-call analysis, survivorship-bias-free historical membership, taxes, full dividend modeling, or real trading. Those are later-stage improvements after the user experience and testing process are stable.
 
@@ -80,7 +84,16 @@ This version does **not** include fundamentals, SEC filings, earnings-call analy
 - **The app will not deploy:** Confirm that `app.py` and `requirements.txt` are at the top level of the GitHub repository—not inside an extra folder.
 - **The first load feels slow:** Live data downloads can take several seconds. The app caches results for one hour.
 
+## How to read the new Trust Layer
+
+- The performance chart compares the strategy with the named benchmark.
+- **Rebalance summary** shows what was held, added, removed, and the estimated turnover.
+- **Position-level holdings** shows every selected ticker and the signals behind its rank at that time.
+- The three download buttons save the performance history, holdings history, and summary metrics as CSV files.
+
+These additions make the simulation easier to inspect; they do not make it predictive. The selected stock list still reflects today's chosen universe, so survivorship bias remains an important limitation.
+
 ## Suggested next milestone
 
-Use the app in Demo mode first, deploy it, and make a short list of anything that feels confusing. After that, the most important quantitative improvement is adding a trustworthy historical stock universe to reduce survivorship bias before interpreting backtest results seriously.
+After V1.2 runs smoothly, the next quantitative priority is a point-in-time historical stock universe to reduce survivorship bias. After that: company fundamentals and walk-forward testing. Real-money trading should remain off.
 

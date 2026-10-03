@@ -14,4 +14,7 @@ The app starts in safe Demo mode. It never connects to a brokerage and cannot pl
 trades. Switch to Live market data in the sidebar only when you want to try delayed
 public prices. If that download fails, the app safely returns to Demo mode.
 
+Version 1.2 adds an SPY benchmark, selectable backtest dates, a complete rebalance
+and holdings history, and three downloadable CSV result files.
+
 This is an educational research tool, not financial advice.

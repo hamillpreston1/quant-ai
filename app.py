@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 
 from quant_ai.backtest import run_backtest
@@ -88,7 +89,7 @@ def restore_starter_settings() -> None:
 
 with st.sidebar:
     st.markdown("<div class='brand'>QUANT <span>AI</span></div>", unsafe_allow_html=True)
-    st.caption("Research signals, made understandable · V1.1")
+    st.caption("Research signals, made understandable · V1.2")
     page = st.radio(
         "Navigation",
         ["Dashboard", "Stock Rankings", "Stock Detail", "Backtester", "Settings / Research Lab"],
@@ -112,7 +113,7 @@ if len(tickers) < 3:
 st.session_state.portfolio_size = min(max(3, int(st.session_state.portfolio_size)), min(20, len(tickers)))
 
 with st.spinner("Preparing market data…"):
-    prices, data_status = cached_prices(st.session_state.data_mode, tuple(tickers))
+    prices, benchmark_prices, data_status = cached_prices(st.session_state.data_mode, tuple(tickers))
 
 weights = normalized_weights()
 rankings = calculate_rankings(prices, weights)
@@ -140,6 +141,8 @@ if page == "Dashboard":
         portfolio_size=min(st.session_state.portfolio_size, max(1, len(rankings))),
         rebalance="Monthly",
         transaction_cost_bps=st.session_state.transaction_cost_bps,
+        benchmark_prices=benchmark_prices,
+        benchmark_name=data_status.benchmark_label,
     )
 
     top = rankings.iloc[0]
@@ -149,7 +152,7 @@ if page == "Dashboard":
     with cols[1]:
         draw_metric_card("Model return", format_percent(result.metrics["total_return"]), "Full test period")
     with cols[2]:
-        draw_metric_card("Benchmark return", format_percent(result.metrics["benchmark_return"]), "Equal-weight universe")
+        draw_metric_card("Benchmark return", format_percent(result.metrics["benchmark_return"]), result.benchmark_name)
     with cols[3]:
         draw_metric_card("Current basket", str(min(st.session_state.portfolio_size, len(rankings))), "Top-ranked stocks")
 
@@ -182,6 +185,7 @@ if page == "Dashboard":
             "then subtracts points for higher price volatility. It does not analyze company finances, "
             "news, valuation, taxes, or your personal situation."
         )
+        st.caption(f"Performance is compared with {result.benchmark_name}.")
         st.markdown("**Current factor mix**")
         st.progress(weights["momentum_12m"], text=f"12-month momentum · {weights['momentum_12m']:.0%}")
         st.progress(weights["momentum_6m"], text=f"6-month momentum · {weights['momentum_6m']:.0%}")
@@ -281,6 +285,8 @@ elif page == "Backtester":
         "Test how the rules would have behaved in the past. Past results do not predict future returns.",
         data_status.label,
     )
+    available_start = prices.index[252].date()
+    available_end = prices.index[-1].date()
     with st.form("backtest_controls"):
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -289,7 +295,26 @@ elif page == "Backtester":
             rebalance = st.selectbox("Rebalance schedule", ["Monthly", "Quarterly"])
         with c3:
             transaction_cost = st.number_input("Estimated trading cost (basis points)", 0, 100, int(st.session_state.transaction_cost_bps), 5)
+        d1, d2 = st.columns(2)
+        with d1:
+            test_start = st.date_input(
+                "Backtest start",
+                value=available_start,
+                min_value=available_start,
+                max_value=available_end,
+            )
+        with d2:
+            test_end = st.date_input(
+                "Backtest end",
+                value=available_end,
+                min_value=available_start,
+                max_value=available_end,
+            )
         submitted = st.form_submit_button("Run backtest", type="primary", width="stretch")
+
+    if test_start >= test_end:
+        st.error("Choose an end date after the start date.")
+        st.stop()
 
     signature = (
         data_status.label,
@@ -298,16 +323,28 @@ elif page == "Backtester":
         portfolio_size,
         rebalance,
         transaction_cost,
+        test_start.isoformat(),
+        test_end.isoformat(),
     )
     if submitted or st.session_state.get("backtest_signature") != signature:
         with st.spinner("Running the historical simulation…"):
-            st.session_state.backtest_result = run_backtest(
-                prices,
-                weights=weights,
-                portfolio_size=portfolio_size,
-                rebalance=rebalance,
-                transaction_cost_bps=transaction_cost,
-            )
+            try:
+                st.session_state.backtest_result = run_backtest(
+                    prices,
+                    weights=weights,
+                    portfolio_size=portfolio_size,
+                    rebalance=rebalance,
+                    transaction_cost_bps=transaction_cost,
+                    benchmark_prices=benchmark_prices,
+                    benchmark_name=data_status.benchmark_label,
+                    start_date=pd.Timestamp(test_start),
+                    end_date=pd.Timestamp(test_end),
+                )
+            except ValueError as exc:
+                st.session_state.pop("backtest_result", None)
+                st.session_state.pop("backtest_signature", None)
+                st.error(str(exc))
+                st.stop()
             st.session_state.backtest_signature = signature
     result = st.session_state.backtest_result
 
@@ -327,14 +364,102 @@ elif page == "Backtester":
     st.plotly_chart(performance_chart(result), width="stretch", config={"displayModeBar": False})
     st.caption(
         f"Test period: {result.start_date:%b %Y} to {result.end_date:%b %Y}. "
-        "Signals use only information available before each rebalance. Dividends, taxes, spreads, and market impact are not fully modeled."
+        f"Benchmark: {result.benchmark_name}. Signals use only information available before each rebalance. "
+        "Taxes, spreads, and market impact are not fully modeled."
     )
+
+    st.markdown("### Rebalance and holdings history")
+    rebalance_tab, holdings_tab = st.tabs(["Rebalance summary", "Position-level holdings"])
+    with rebalance_tab:
+        rebalance_display = result.rebalances.copy().sort_values("Rebalance date", ascending=False)
+        rebalance_display["Rebalance date"] = rebalance_display["Rebalance date"].dt.strftime("%Y-%m-%d")
+        st.dataframe(
+            rebalance_display.style.format({"Turnover": "{:.0%}"}),
+            width="stretch",
+            hide_index=True,
+            height=360,
+        )
+    with holdings_tab:
+        holdings_display = result.holdings.copy().sort_values(["Rebalance date", "Rank"], ascending=[False, True])
+        holdings_display["Rebalance date"] = holdings_display["Rebalance date"].dt.strftime("%Y-%m-%d")
+        st.dataframe(
+            holdings_display.style.format(
+                {
+                    "Score": "{:.1f}",
+                    "12M momentum": "{:+.1%}",
+                    "6M momentum": "{:+.1%}",
+                    "Volatility": "{:.1%}",
+                }
+            ),
+            width="stretch",
+            hide_index=True,
+            height=420,
+        )
+
+    st.markdown("### Download results")
+    performance_export = pd.concat(
+        [
+            result.portfolio.rename("Quant AI portfolio value"),
+            result.benchmark.rename(f"{result.benchmark_name} value"),
+        ],
+        axis=1,
+    )
+    metrics_export = pd.DataFrame(
+        {
+            "Metric": [
+                "Total return",
+                "Annual return",
+                "Maximum drawdown",
+                "Annualized volatility",
+                "Sharpe ratio",
+                f"{result.benchmark_name} return",
+                f"{result.benchmark_name} annual return",
+            ],
+            "Value": [
+                result.metrics["total_return"],
+                result.metrics["cagr"],
+                result.metrics["max_drawdown"],
+                result.metrics["volatility"],
+                result.metrics["sharpe"],
+                result.metrics["benchmark_return"],
+                result.metrics["benchmark_cagr"],
+            ],
+        }
+    )
+    download_cols = st.columns(3)
+    with download_cols[0]:
+        st.download_button(
+            "Download performance CSV",
+            data=performance_export.to_csv(index_label="Date").encode("utf-8"),
+            file_name="quant_ai_performance.csv",
+            mime="text/csv",
+            width="stretch",
+        )
+    with download_cols[1]:
+        st.download_button(
+            "Download holdings CSV",
+            data=result.holdings.to_csv(index=False).encode("utf-8"),
+            file_name="quant_ai_holdings.csv",
+            mime="text/csv",
+            width="stretch",
+        )
+    with download_cols[2]:
+        st.download_button(
+            "Download metrics CSV",
+            data=metrics_export.to_csv(index=False).encode("utf-8"),
+            file_name="quant_ai_metrics.csv",
+            mime="text/csv",
+            width="stretch",
+        )
+
     with st.expander("How this backtest works"):
         st.markdown(
             "1. At each rebalance date, the model scores every stock using trailing prices.\n"
             "2. It equally weights the highest-ranked stocks.\n"
             "3. It holds them until the next rebalance and subtracts the trading-cost estimate.\n"
-            "4. The benchmark is an equal-weight basket of the available universe, not the S&P 500."
+            f"4. It compares the strategy with {result.benchmark_name}.\n"
+            "5. Demo mode uses synthetic data; Live mode uses adjusted public prices when available.\n\n"
+            "Important limitation: the stock universe is based on today’s selected symbols, so this version still has survivorship-bias risk."
         )
 
 

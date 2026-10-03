@@ -83,7 +83,7 @@ def format_percent(value: float) -> str:
 def performance_chart(result: BacktestResult) -> go.Figure:
     figure = go.Figure()
     figure.add_trace(go.Scatter(x=result.portfolio.index, y=result.portfolio, name="Quant AI", line={"color": "#536dfe", "width": 3}))
-    figure.add_trace(go.Scatter(x=result.benchmark.index, y=result.benchmark, name="Equal-weight benchmark", line={"color": "#94a3b8", "width": 2}))
+    figure.add_trace(go.Scatter(x=result.benchmark.index, y=result.benchmark, name=result.benchmark_name, line={"color": "#94a3b8", "width": 2}))
     figure.update_layout(
         height=390,
         margin={"l": 15, "r": 15, "t": 25, "b": 15},
